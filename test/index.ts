@@ -84,6 +84,17 @@ describe("KYCPlatform", () => {
     expect(kycInfo.version).equal(_version);
   });
 
+  it("Should revert the wrong signature", async () => {
+    const signature: string = await getCreateKYCSignature(
+      _uid,
+      account1.address,
+      account1
+    );
+    await expect(
+      kycPlatform.connect(account1).createKYCMember(_uid, signature)
+    ).revertedWith("KYCPlatform: Invalid Signature");
+  });
+
   async function getCreateKYCSignature(
     _uid: string,
     _address: string,
