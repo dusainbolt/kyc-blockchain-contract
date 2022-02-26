@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 import "./Verify.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "hardhat/console.sol";
 
 contract KYCPlatform is Ownable, Verify {
     // Setting of contract
@@ -11,17 +10,18 @@ contract KYCPlatform is Ownable, Verify {
     // List project register in system
     Project[] private projects;
 
-    mapping(uint256 => mapping(address => KycInfo)) private projectUsers;
+    // mapping(uint256 => mapping(address => KycInfo)) private projectUsers;
 
     mapping(address => KycInfo) private users;
 
+    // Spirnt 2 durationPaymentFee, expireEachProject
     struct Setting {
         uint8 version; // Version of KYC
-        uint32 renewExpireTime;
+        uint32 renewExpireTime; // duration that user must reset kyc
         uint32 durationUpdateVersion; // Duration update version when user must change KYC
-        uint32 expireEachProject; // Expire for each business using platform
+        // uint32 expireEachProject; // Expire for each business using platform
         uint256 serviceFee; // The service fee witch business must payment when create project
-        uint32 durationPaymentFee; // Duration payment to service fee since second time
+        // uint32 durationPaymentFee; // Duration payment to service fee since second time
     }
 
     struct Project {
@@ -42,20 +42,43 @@ contract KYCPlatform is Ownable, Verify {
         uint256 kycExpireTime;
     }
 
+    /**
+     * @notice Validate pool by project iD
+     * @param _projectId id of the pool
+     */
+
+    modifier validateProject(uint256 _projectId) {
+        require(
+            _projectId < projects.length,
+            "KYCPlatform: Project is not exist"
+        );
+        _;
+    }
+
+    /**
+     * @notice set the setting of contract
+     * @param _version Version of KYC
+     * @param  _durationUpdateVersion Duration update version when user must change KYC
+     * @param _renewExpireTime  duration that user must reset kyc
+     * @param _serviceFee  The service fee witch business must payment when create project
+     */
     function setSetting(
-        uint8 _version, // Version of KYC
-        uint32 _durationUpdateVersion, // Duration update version when user must change KYC
+        uint8 _version,
+        uint32 _durationUpdateVersion,
         uint32 _renewExpireTime,
-        uint32 _expireEachProject, // Expire for each business using platform
-        uint256 _serviceFee, // The service fee witch business must payment when create project
-        uint32 _durationPaymentFee // Duration payment to service fee since second time
-    ) external onlyOwner {
+        // uint32 _expireEachProject,
+        uint256 _serviceFee
+    )
+        external
+        // uint32 _durationPaymentFee // Duration payment to service fee since second time
+        onlyOwner
+    {
         settings.version = _version;
         settings.durationUpdateVersion = _durationUpdateVersion;
         settings.renewExpireTime = _renewExpireTime;
-        settings.expireEachProject = _expireEachProject;
+        // settings.expireEachProject = _expireEachProject;
         settings.serviceFee = _serviceFee;
-        settings.durationPaymentFee = _durationPaymentFee;
+        // settings.durationPaymentFee = _durationPaymentFee;
     }
 
     function getSetting() public view onlyOwner returns (Setting memory) {
@@ -63,7 +86,7 @@ contract KYCPlatform is Ownable, Verify {
     }
 
     /**
-     * @notice create kyc member to contract
+     * @notice get kyc info of user
      * @param _userAdress the address of user
      */
     function getKYCInfo(address _userAdress)
@@ -80,6 +103,21 @@ contract KYCPlatform is Ownable, Verify {
         );
 
         return kyc;
+    }
+
+    /**
+     * @notice get kyc info of user by project
+     * @param _projectId the project id
+     * @param _userAddress the address of user
+     */
+    function getKYCByProject(uint256 _projectId, address _userAddress)
+        public
+        view
+        onlyOwner
+        validateProject(_projectId)
+        returns (KycInfo memory)
+    {
+        return getKYCInfo(_userAddress);
     }
 
     /**
