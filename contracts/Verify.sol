@@ -13,6 +13,13 @@ contract Verify {
         return keccak256(abi.encodePacked(_uid, _userAddress));
     }
 
+    function getCreateProjectMessageHash(
+        string memory _projectId,
+        address _userAddress
+    ) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_projectId, _userAddress));
+    }
+
     function getEthSignedMessageHash(bytes32 _messageHash)
         private
         pure
@@ -36,6 +43,17 @@ contract Verify {
         bytes memory _signature
     ) public pure returns (bool) {
         bytes32 messageHash = getCreateKYCMessageHash(_uid, _userAddress);
+        bytes32 ethSignMessagehash = getEthSignedMessageHash(messageHash);
+        return getSingerAdderss(ethSignMessagehash, _signature) == _singer;
+    }
+
+    function verifyCreateProject(
+        address _singer,
+        string memory _projectId,
+        address _userAddress,
+        bytes memory _signature
+    ) public pure returns (bool) {
+        bytes32 messageHash = getCreateKYCMessageHash(_projectId, _userAddress);
         bytes32 ethSignMessagehash = getEthSignedMessageHash(messageHash);
         return getSingerAdderss(ethSignMessagehash, _signature) == _singer;
     }

@@ -25,7 +25,10 @@ describe("KYCPlatform", () => {
   const _durationUpdateVersion: number = time.duration.days("30").toNumber();
   const _renewExpireTime: number = time.duration.years("2").toNumber();
   const _serviceFee: BigNumber = utils.parseUnits("0.002");
+  const _expireEachProject: BigNumber = time.duration.years("1").toNumber();
+  const _durationPaymentFee: number = time.duration.days("15").toNumber();
 
+  // kyc
   const _uid: string = "du@devProVjp";
 
   before(async () => {
@@ -37,11 +40,16 @@ describe("KYCPlatform", () => {
     kycPlatform = await KycPlatformFactory.deploy();
     kycPlatform.deployed();
 
-    await kycPlatform.setSetting(
+    await kycPlatform.setSettingKYC(
       _version,
       _durationUpdateVersion,
-      _renewExpireTime,
-      _serviceFee
+      _renewExpireTime
+    );
+
+    await kycPlatform.setSettingProject(
+      _expireEachProject,
+      _serviceFee,
+      _durationPaymentFee
     );
   });
 
@@ -50,23 +58,22 @@ describe("KYCPlatform", () => {
   });
 
   it("Should return the correct setting", async () => {
-    const settings = await kycPlatform.getSetting();
-    expect(settings.version).equal(_version);
-    expect(settings.durationUpdateVersion).equal(_durationUpdateVersion);
-    expect(settings.renewExpireTime).equal(_renewExpireTime);
-    expect(settings.serviceFee).equal(_serviceFee);
+    const settingsKyc = await kycPlatform.getSettingKYC();
+    expect(settingsKyc.version).equal(_version);
+    expect(settingsKyc.durationUpdateVersion).equal(_durationUpdateVersion);
+    expect(settingsKyc.renewExpireTime).equal(_renewExpireTime);
+
+    const settingsProject = await kycPlatform.getSettingProject();
+    expect(settingsProject.expireEachProject).equal(_expireEachProject);
+    expect(settingsProject.serviceFee).equal(_serviceFee);
+    expect(settingsProject.durationPaymentFee).equal(_durationPaymentFee);
   });
 
   it("Should revert flow setting with wrong owner", async () => {
     await expect(
       kycPlatform
         .connect(account1)
-        .setSetting(
-          _version,
-          _durationUpdateVersion,
-          _renewExpireTime,
-          _serviceFee
-        )
+        .setSettingKYC(_version, _durationUpdateVersion, _renewExpireTime)
     ).to.revertedWith("Ownable: caller is not the owner");
   });
 
@@ -93,6 +100,52 @@ describe("KYCPlatform", () => {
     await expect(
       kycPlatform.connect(account1).createKYCMember(_uid, signature)
     ).revertedWith("KYCPlatform: Invalid Signature");
+  });
+
+  it("Should revert duplicate kyc", async () => {
+    const signature: string = await getCreateKYCSignature(
+      _uid,
+      account1.address,
+      owner
+    );
+    await kycPlatform.connect(account1).createKYCMember(_uid, signature);
+    await expect(
+      kycPlatform.connect(account1).createKYCMember(_uid, signature)
+    ).revertedWith("KYCPlatform: KYC is exist");
+  });
+
+  it("Should revert the get KYC info by expire", async () => {
+    const signature: string = await getCreateKYCSignature(
+      _uid,
+      account1.address,
+      owner
+    );
+
+    await kycPlatform.connect(account1).createKYCMember(_uid, signature);
+
+    await time.increase(_renewExpireTime);
+    await expect(kycPlatform.getKYCInfo(account1.address)).revertedWith(
+      "KYCPlatform: KYC is expire"
+    );
+  });
+
+  it("Should revert the get KYC info by version", async () => {
+    const signature: string = await getCreateKYCSignature(
+      _uid,
+      account1.address,
+      owner
+    );
+
+    await kycPlatform.connect(account1).createKYCMember(_uid, signature);
+
+    await kycPlatform.setSettingKYC(
+      _version + 1,
+      _durationUpdateVersion,
+      _renewExpireTime
+    );
+    await expect(kycPlatform.getKYCInfo(account1.address)).revertedWith(
+      "KYCPlatform: Version KYC of user not correct"
+    );
   });
 
   async function getCreateKYCSignature(
