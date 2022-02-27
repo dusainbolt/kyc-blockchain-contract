@@ -32,7 +32,7 @@ contract KYCPlatform is Ownable, Verify, ReentrancyGuard {
 
     struct Project {
         string projectId;
-        uint256 endExpireTime;
+        uint256 projectExpireTime;
         uint256 createdAt;
         address payable creator;
     }
@@ -44,6 +44,15 @@ contract KYCPlatform is Ownable, Verify, ReentrancyGuard {
         uint256 createdAt;
         uint256 kycExpireTime;
     }
+
+    event ProjectCreated(
+        uint256 indexed projectIndex,
+        string projectId,
+        address creator,
+        uint256 projectExpireTime
+    );
+
+    event KycCreated(string uid, address userAddress, uint256 kycExpireTime);
 
     /**
      * @notice Validate pool by project iD
@@ -112,19 +121,54 @@ contract KYCPlatform is Ownable, Verify, ReentrancyGuard {
         payable
         nonReentrant
     {
-        // payable(msg.sender)
-        // require(
-        //     verifyCreateKYC(owner(), _uid, _msgSender(), _signature),
-        //     "KYCPlatform: Invalid Signature"
-        // );
-        // users[_msgSender()].version = settings.version;
-        // users[_msgSender()].userAddress = _msgSender();
-        // users[_msgSender()].uid = _uid;
-        // users[_msgSender()].createdAt = block.timestamp;
-        // users[_msgSender()].kycExpireTime =
-        //     block.timestamp +
-        //     settings.renewExpireTime;
-        // verifyCreateProject
+        require(
+            isExistProject[_projectId] == false,
+            "KYCPlatform: Project is exist"
+        );
+
+        require(
+            verifyCreateProject(owner(), _projectId, _msgSender(), _signature),
+            "KYCPlatform: Invalid Signature"
+        );
+
+        require(
+            msg.value == settingsProject.serviceFee,
+            "KYCPlatform: Not enough service fee"
+        );
+
+        address payable creator = payable(_msgSender());
+
+        _forwardFunds(msg.value);
+
+        uint256 projectExpireTime = block.timestamp +
+            settingsProject.expireEachProject;
+
+        projects.push(
+            Project({
+                projectId: _projectId,
+                projectExpireTime: projectExpireTime,
+                createdAt: block.timestamp,
+                creator: creator
+            })
+        );
+
+        isExistProject[_projectId] = true;
+
+        emit ProjectCreated(
+            projects.length - 1,
+            _projectId,
+            creator,
+            projectExpireTime
+        );
+    }
+
+    /**
+     * @dev Determines how ETH is stored/forwarded on purchases.
+     */
+    function _forwardFunds(uint256 _value) internal {
+        address payable wallet = payable(owner());
+        (bool sent, ) = wallet.call{value: _value}("");
+        require(sent, "KYCPlatform: WALLET_TRANSFER_FAILED");
     }
 
     /**
@@ -139,6 +183,11 @@ contract KYCPlatform is Ownable, Verify, ReentrancyGuard {
         validateProject(_projectIndex)
         returns (KycInfo memory)
     {
+        require(
+            projects[_projectIndex].projectExpireTime >
+                block.timestamp + settingsProject.durationPaymentFee,
+            "KYCPlatform: Project is expire"
+        );
         return getKYCInfo(_userAddress);
     }
 
@@ -165,6 +214,8 @@ contract KYCPlatform is Ownable, Verify, ReentrancyGuard {
             settingsKyc.renewExpireTime;
 
         isExistKYC[_msgSender()] = true;
+
+        emit KycCreated(_uid, _msgSender(), users[_msgSender()].kycExpireTime);
     }
 
     /**

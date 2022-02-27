@@ -30,6 +30,7 @@ describe("KYCPlatform", () => {
 
   // kyc
   const _uid: string = "du@devProVjp";
+  const _projectId: string = "project_id_string_text";
 
   before(async () => {
     KycPlatformFactory = await ethers.getContractFactory("KYCPlatform");
@@ -69,14 +70,6 @@ describe("KYCPlatform", () => {
     expect(settingsProject.durationPaymentFee).equal(_durationPaymentFee);
   });
 
-  it("Should revert flow setting with wrong owner", async () => {
-    await expect(
-      kycPlatform
-        .connect(account1)
-        .setSettingKYC(_version, _durationUpdateVersion, _renewExpireTime)
-    ).to.revertedWith("Ownable: caller is not the owner");
-  });
-
   it("Should return the correct kyc member", async () => {
     const signature: string = await getCreateKYCSignature(
       _uid,
@@ -91,7 +84,66 @@ describe("KYCPlatform", () => {
     expect(kycInfo.version).equal(_version);
   });
 
-  it("Should revert the wrong signature", async () => {
+  it("Should return the correct project", async () => {
+    const signatureKYC: string = await getCreateKYCSignature(
+      _uid,
+      account1.address,
+      owner
+    );
+    await kycPlatform.connect(account1).createKYCMember(_uid, signatureKYC);
+
+    const signature: string = await getCreateProjectSignature(
+      _projectId,
+      account1.address,
+      owner
+    );
+    const balanceOwner = await owner.getBalance();
+    await kycPlatform
+      .connect(account1)
+      .createProject(_projectId, signature, { value: _serviceFee });
+
+    expect(await owner.getBalance()).equal(_serviceFee.add(balanceOwner));
+
+    const kycInfo = await kycPlatform.getKYCByProject(0, account1.address);
+    expect(kycInfo.uid).equal(_uid);
+  });
+
+  it("Should revert expire project", async () => {
+    const signatureKYC: string = await getCreateKYCSignature(
+      _uid,
+      account1.address,
+      owner
+    );
+    await kycPlatform.connect(account1).createKYCMember(_uid, signatureKYC);
+
+    const signature: string = await getCreateProjectSignature(
+      _projectId,
+      account1.address,
+      owner
+    );
+
+    await kycPlatform
+      .connect(account1)
+      .createProject(_projectId, signature, { value: _serviceFee });
+
+    await time.increase(
+      BigNumber.from(_expireEachProject).add(_durationPaymentFee).toString()
+    );
+
+    await expect(kycPlatform.getKYCByProject(0, account1.address)).revertedWith(
+      "KYCPlatform: Project is expire"
+    );
+  });
+
+  it("Should revert flow setting with wrong owner", async () => {
+    await expect(
+      kycPlatform
+        .connect(account1)
+        .setSettingKYC(_version, _durationUpdateVersion, _renewExpireTime)
+    ).to.revertedWith("Ownable: caller is not the owner");
+  });
+
+  it("Should revert the wrong signature create KYC", async () => {
     const signature: string = await getCreateKYCSignature(
       _uid,
       account1.address,
@@ -99,6 +151,19 @@ describe("KYCPlatform", () => {
     );
     await expect(
       kycPlatform.connect(account1).createKYCMember(_uid, signature)
+    ).revertedWith("KYCPlatform: Invalid Signature");
+  });
+
+  it("Should revert the wrong signature create Project", async () => {
+    const signature: string = await getCreateProjectSignature(
+      _projectId,
+      account1.address,
+      account1
+    );
+    await expect(
+      kycPlatform
+        .connect(account1)
+        .createProject(_projectId, signature, { value: _serviceFee })
     ).revertedWith("KYCPlatform: Invalid Signature");
   });
 
@@ -112,6 +177,37 @@ describe("KYCPlatform", () => {
     await expect(
       kycPlatform.connect(account1).createKYCMember(_uid, signature)
     ).revertedWith("KYCPlatform: KYC is exist");
+  });
+
+  it("Should revert duplicate project", async () => {
+    const signature: string = await getCreateProjectSignature(
+      _projectId,
+      account1.address,
+      owner
+    );
+    await kycPlatform
+      .connect(account1)
+      .createProject(_projectId, signature, { value: _serviceFee });
+
+    await expect(
+      kycPlatform
+        .connect(account1)
+        .createProject(_projectId, signature, { value: _serviceFee })
+    ).revertedWith("KYCPlatform: Project is exist");
+  });
+
+  it("Should revert not enough service fee project", async () => {
+    const signature: string = await getCreateProjectSignature(
+      _projectId,
+      account1.address,
+      owner
+    );
+
+    await expect(
+      kycPlatform
+        .connect(account1)
+        .createProject(_projectId, signature, { value: _serviceFee.sub(1000) })
+    ).revertedWith("KYCPlatform: Not enough service fee");
   });
 
   it("Should revert the get KYC info by expire", async () => {
@@ -155,6 +251,21 @@ describe("KYCPlatform", () => {
   ) {
     // call to contract with parameters
     const hash = await kycPlatform.getCreateKYCMessageHash(_uid, _address);
+    // Sign this message hash with private key and account address
+    const signature = await web3.eth.sign(hash, _singer.address);
+    return signature;
+  }
+
+  async function getCreateProjectSignature(
+    _projectId: string,
+    _address: string,
+    _singer: SignerWithAddress
+  ) {
+    // call to contract with parameters
+    const hash = await kycPlatform.getCreateProjectMessageHash(
+      _projectId,
+      _address
+    );
     // Sign this message hash with private key and account address
     const signature = await web3.eth.sign(hash, _singer.address);
     return signature;
