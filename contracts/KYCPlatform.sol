@@ -4,8 +4,10 @@ pragma solidity ^0.8.0;
 import "./Verify.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 contract KYCPlatform is Ownable, Verify, ReentrancyGuard {
+    using SafeMath for uint256;
     // Setting KYC of contract
     SettingKYC private settingsKyc;
     // Setting Project of contract
