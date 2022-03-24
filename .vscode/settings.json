@@ -3,5 +3,6 @@
         "bignumber",
         "ethersproject",
         "typechain"
-    ]
+    ],
+    "solidity.defaultCompiler": "localNodeModule"
 }
