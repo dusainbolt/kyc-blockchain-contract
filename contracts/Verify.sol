@@ -13,11 +13,19 @@ contract Verify {
         return keccak256(abi.encodePacked(_uid, _userAddress));
     }
 
+    // function getMessageHashShareKYCHash(uint256 _projectIndex)
+    //     public
+    //     pure
+    //     returns (bytes32)
+    // {
+    //     return keccak256(abi.encodePacked(_projectIndex));
+    // }
+
     function getCreateProjectMessageHash(
-        string memory _projectId,
+        string memory _uid,
         address _userAddress
     ) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_projectId, _userAddress));
+        return keccak256(abi.encodePacked(_uid, _userAddress));
     }
 
     function getEthSignedMessageHash(bytes32 _messageHash)
@@ -46,6 +54,16 @@ contract Verify {
         bytes32 ethSignMessagehash = getEthSignedMessageHash(messageHash);
         return getSingerAdderss(ethSignMessagehash, _signature) == _singer;
     }
+
+    // function verifyShareKYCInfo(
+    //     address _singer,
+    //     uint256 _projectIndex,
+    //     bytes memory _signature
+    // ) public pure returns (bool) {
+    //     bytes32 messageHash = getMessageHashShareKYCHash(_projectIndex);
+    //     bytes32 ethSignMessagehash = getEthSignedMessageHash(messageHash);
+    //     return getSingerAdderss(ethSignMessagehash, _signature) == _singer;
+    // }
 
     function verifyCreateProject(
         address _singer,

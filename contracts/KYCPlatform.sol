@@ -5,9 +5,11 @@ import "./Verify.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 contract KYCPlatform is Ownable, Verify, ReentrancyGuard {
     using SafeMath for uint256;
+    using EnumerableSet for EnumerableSet.UintSet;
     // Setting KYC of contract
     SettingKYC private settingsKyc;
     // Setting Project of contract
@@ -16,6 +18,9 @@ contract KYCPlatform is Ownable, Verify, ReentrancyGuard {
     Project[] private projects;
 
     mapping(string => bool) private isExistProject;
+
+    mapping(address => EnumerableSet.UintSet) private shareHistory;
+
     mapping(address => bool) private isExistKYC;
 
     mapping(address => KycInfo) private users;
@@ -53,6 +58,8 @@ contract KYCPlatform is Ownable, Verify, ReentrancyGuard {
         address creator,
         uint256 projectExpireTime
     );
+
+    event KycShared(uint256 indexed projectIndex, address userAddress);
 
     event KycCreated(string uid, address userAddress, uint256 kycExpireTime);
 
@@ -133,14 +140,14 @@ contract KYCPlatform is Ownable, Verify, ReentrancyGuard {
             "KYCPlatform: Invalid Signature"
         );
 
-        require(
-            msg.value == settingsProject.serviceFee,
-            "KYCPlatform: Not enough service fee"
-        );
+        // require(
+        //     msg.value == settingsProject.serviceFee,
+        //     "KYCPlatform: Not enough service fee"
+        // );
 
         address payable creator = payable(_msgSender());
 
-        _forwardFunds(msg.value);
+        // _forwardFunds(msg.value);
 
         uint256 projectExpireTime = block.timestamp +
             settingsProject.expireEachProject;
@@ -174,22 +181,42 @@ contract KYCPlatform is Ownable, Verify, ReentrancyGuard {
     }
 
     /**
-     * @notice get kyc info of user by project
+     * @notice share KYC info
+     * @param _projectIndex the project id
+     */
+    function shareKYCInfo(uint256 _projectIndex)
+        external
+        payable
+        validateProject(_projectIndex)
+    {
+        require(isExistKYC[_msgSender()], "KYCPlatform: KYC isn't exist");
+
+        require(
+            !shareHistory[_msgSender()].contains(_projectIndex),
+            "KYCPlatform: KYCInfo was shared"
+        );
+
+        shareHistory[_msgSender()].add(_projectIndex);
+
+        emit KycShared(_projectIndex, _msgSender());
+    }
+
+    /**
      * @param _projectIndex the project id
      * @param _userAddress the address of user
      */
     function getKYCByProject(uint256 _projectIndex, address _userAddress)
         public
         view
-        onlyOwner
         validateProject(_projectIndex)
         returns (KycInfo memory)
     {
+        require(isExistKYC[_userAddress], "KYCPlatform: KYC isn't exist");
         require(
-            projects[_projectIndex].projectExpireTime >
-                block.timestamp + settingsProject.durationPaymentFee,
-            "KYCPlatform: Project is expire"
+            shareHistory[_userAddress].contains(_projectIndex),
+            "KYCPlatform: KYC wasn't shared"
         );
+
         return getKYCInfo(_userAddress);
     }
 
@@ -232,15 +259,15 @@ contract KYCPlatform is Ownable, Verify, ReentrancyGuard {
     {
         KycInfo memory kyc = users[_userAdress];
 
-        require(
-            kyc.version == settingsKyc.version,
-            "KYCPlatform: Version KYC of user not correct"
-        );
+        // require(
+        //     kyc.version == settingsKyc.version,
+        //     "KYCPlatform: Version KYC of user not correct"
+        // );
 
-        require(
-            kyc.kycExpireTime > block.timestamp,
-            "KYCPlatform: KYC is expire"
-        );
+        // require(
+        //     kyc.kycExpireTime > block.timestamp,
+        //     "KYCPlatform: KYC is expire"
+        // );
 
         return kyc;
     }
